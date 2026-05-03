@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\AuthController;
@@ -18,6 +19,7 @@ Route::prefix('api')->group(function () {
     // Protected routes
     Route::middleware('auth')->group(function () {
         Route::post('/products', [ProductController::class, 'store']);
+        Route::delete('/products/{id}', [ProductController::class, 'destroy']);
         Route::post('/update-profile', [AuthController::class, 'updateProfile']);
     });
 });
@@ -26,6 +28,19 @@ Route::prefix('api')->group(function () {
 Route::get('/admin/reset-password', function () {
     return view('app');
 })->name('password.reset');
+
+Route::get('/fix-storage', function () {
+    try {
+        if (file_exists(public_path('storage'))) {
+            rename(public_path('storage'), public_path('storage_old_' . time()));
+        }
+        
+        Artisan::call('storage:link');
+        return 'Storage link created successfully.';
+    } catch (\Exception $e) {
+        return 'Error: ' . $e->getMessage();
+    }
+});
 
 Route::get('/{any}', function () {
     return view('app');

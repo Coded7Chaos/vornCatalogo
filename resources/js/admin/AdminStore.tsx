@@ -159,16 +159,74 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addProduct = (product: AdminProduct) => {
-    setProducts((prev) => [product, ...prev]);
+  const addProduct = async (product: AdminProduct) => {
+    try {
+      const formData = new FormData();
+      formData.append('name', product.name);
+      formData.append('piece', product.piece);
+      formData.append('price', product.price);
+      formData.append('description', product.description || '');
+
+      product.variants.forEach((variant, vIdx) => {
+        formData.append(`variants[${vIdx}][color_name]`, variant.name);
+        formData.append(`variants[${vIdx}][color_hex]`, variant.color);
+        variant.sizes.forEach((size, sIdx) => {
+          formData.append(`variants[${vIdx}][sizes][${sIdx}]`, size);
+        });
+        
+        // Handle images
+        variant.images.forEach((img, iIdx) => {
+          if (img.startsWith('data:image')) {
+            // Convert base64 to file
+            const byteString = atob(img.split(',')[1]);
+            const mimeString = img.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeString });
+            formData.append(`variants[${vIdx}][images][${iIdx}]`, blob, `image-${vIdx}-${iIdx}.png`);
+          }
+        });
+      });
+
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || ''
+        },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Failed to add product');
+      await fetchProducts();
+    } catch (error) {
+      console.error("Error adding product:", error);
+    }
   };
 
-  const updateProduct = (product: AdminProduct) => {
-    setProducts((prev) => prev.map((p) => (p.id === product.id ? product : p)));
+  const updateProduct = async (product: AdminProduct) => {
+    // Implement update logic if needed, for now just call add logic or similar
+    // Laravel usually uses POST with _method=PUT for multipart/form-data
+    console.log("Update not fully implemented in backend yet, but calling fetchProducts to sync");
+    await fetchProducts();
   };
 
-  const deleteProduct = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+  const deleteProduct = async (id: string) => {
+    try {
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || ''
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to delete product');
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch (error) {
+      console.error("Error deleting product:", error);
+    }
   };
 
   return (

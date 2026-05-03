@@ -75,4 +75,19 @@ class ProductController extends Controller
             return response()->json($product->load('variants.images', 'variants.sizes'), 201);
         });
     }
+
+    public function destroy($id)
+    {
+        $product = Product::findOrFail($id);
+        
+        // Opcional: Eliminar imágenes físicas del storage
+        foreach ($product->variants as $variant) {
+            foreach ($variant->images as $image) {
+                Storage::disk('public')->delete($image->path);
+            }
+        }
+
+        $product->delete();
+        return response()->json(null, 204);
+    }
 }
