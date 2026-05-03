@@ -209,7 +209,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const updateProduct = async (product: AdminProduct) => {
     try {
       const formData = new FormData();
-      formData.append('_method', 'POST'); // Aunque usamos POST en la ruta, Laravel lo procesa
+      // No necesitamos _method POST si la ruta ya es POST, pero Laravel lo ignora si coincide
       formData.append('name', product.name);
       formData.append('piece', product.piece);
       formData.append('price', product.price);
@@ -224,7 +224,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         
         variant.images.forEach((img, iIdx) => {
           if (img.startsWith('data:image')) {
-            // Imagen nueva (base64)
             const byteString = atob(img.split(',')[1]);
             const mimeString = img.split(',')[0].split(':')[1].split(';')[0];
             const ab = new ArrayBuffer(byteString.length);
@@ -235,7 +234,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             const blob = new Blob([ab], { type: mimeString });
             formData.append(`variants[${vIdx}][images][${iIdx}]`, blob, `image-${vIdx}-${iIdx}.png`);
           } else {
-            // Imagen existente (URL)
+            // Es una URL existente
             formData.append(`variants[${vIdx}][images][${iIdx}]`, img);
           }
         });
@@ -249,7 +248,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         body: formData
       });
 
-      if (!response.ok) throw new Error('Failed to update product');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al actualizar');
+      }
+      
       await fetchProducts();
     } catch (error) {
       console.error("Error updating product:", error);

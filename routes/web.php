@@ -31,16 +31,39 @@ Route::get('/admin/reset-password', function () {
 })->name('password.reset');
 
 Route::get('/fix-storage', function () {
+    $target = storage_path('app/public');
+    $link = public_path('storage');
+
     try {
-        if (file_exists(public_path('storage'))) {
-            rename(public_path('storage'), public_path('storage_old_' . time()));
+        if (file_exists($link)) {
+            if (is_link($link)) {
+                unlink($link);
+            } else {
+                rename($link, $link . '_old_' . time());
+            }
         }
-        
-        Artisan::call('storage:link');
-        return 'Storage link created successfully.';
+
+        if (symlink($target, $link)) {
+            return 'Enlace simbólico creado exitosamente en Hostinger.';
+        } else {
+            return 'No se pudo crear el enlace. Por favor, ve al panel de Hostinger y activa la función "symlink" en la configuración de PHP.';
+        }
     } catch (\Exception $e) {
-        return 'Error: ' . $e->getMessage();
+        return 'Error: ' . $e->getMessage() . '. Intenta borrar la carpeta "public/storage" manualmente desde el Administrador de Archivos de Hostinger y luego recarga esta página.';
     }
+});
+
+Route::get('/view-logs', function () {
+    $path = storage_path('logs/laravel.log');
+    if (!file_exists($path)) {
+        return 'No hay logs todavía.';
+    }
+    
+    // Leemos las últimas 100 líneas
+    $file = file($path);
+    $lines = array_slice($file, -100);
+    
+    return '<pre>' . implode('', $lines) . '</pre>';
 });
 
 Route::get('/{any}', function () {
