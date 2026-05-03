@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schema;
 
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\AuthController;
@@ -19,7 +20,7 @@ Route::prefix('api')->group(function () {
     // Protected routes
     Route::middleware('auth')->group(function () {
         Route::post('/products', [ProductController::class, 'store']);
-        Route::post('/products/{id}', [ProductController::class, 'update']); // Usamos POST para soportar multipart/form-data con imágenes
+        Route::post('/products/{id}', [ProductController::class, 'update']);
         Route::delete('/products/{id}', [ProductController::class, 'destroy']);
         Route::post('/update-profile', [AuthController::class, 'updateProfile']);
     });
@@ -64,7 +65,6 @@ Route::get('/view-logs', function () {
         return 'No hay logs todavía.';
     }
     
-    // Leemos las últimas 100 líneas
     $file = file($path);
     $lines = array_slice($file, -100);
     

@@ -25,7 +25,6 @@ class ProductController extends Controller
         return DB::transaction(function () use ($request) {
             $product = Product::create([
                 'name' => $request->name,
-                'piece' => $request->piece,
                 'price' => $request->price,
                 'description' => $request->description,
             ]);
@@ -44,7 +43,6 @@ class ProductController extends Controller
             $product = Product::findOrFail($id);
             $product->update([
                 'name' => $request->name,
-                'piece' => $request->piece,
                 'price' => $request->price,
                 'description' => $request->description,
             ]);
@@ -65,13 +63,11 @@ class ProductController extends Controller
     {
         $request->validate([
             'name' => 'required|string',
-            'piece' => 'required|string',
             'price' => 'required|string',
             'variants' => 'required|array',
             'variants.*.color_name' => 'required|string',
             'variants.*.color_hex' => 'required|string',
             'variants.*.sizes' => 'required|array',
-            // Quitamos la validación estricta de 'image' aquí porque pueden ser URLs existentes
         ]);
     }
 

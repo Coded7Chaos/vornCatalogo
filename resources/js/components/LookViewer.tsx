@@ -9,7 +9,6 @@ export type Look = {
   id: string;
   name: string;
   description?: string;
-  piece: string;
   price: string;
   variants: ColorVariant[];
 };

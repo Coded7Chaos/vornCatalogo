@@ -26,8 +26,7 @@ const filteredProducts = useMemo(() => {
     .filter((product) => {
       // Verificamos que coincida con el texto de búsqueda
       const matchesSearch =
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.piece.toLowerCase().includes(searchQuery.toLowerCase());
+        product.name.toLowerCase().includes(searchQuery.toLowerCase());
    
             // Solo aprobamos el producto si quedó con al menos 1 variante
           const hasVariants = product.variants.length > 0;

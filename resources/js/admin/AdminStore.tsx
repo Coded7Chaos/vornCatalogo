@@ -12,7 +12,6 @@ export type AdminVariant = {
 export type AdminProduct = {
   id: string;
   name: string;
-  piece: string;
   price: string;
   description?: string;
   variants: AdminVariant[];
@@ -93,7 +92,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       const transformedProducts = data.map((p: any) => ({
         id: p.id.toString(),
         name: p.name,
-        piece: p.piece,
         price: p.price,
         description: p.description,
         totalSales: p.total_sales,
@@ -163,7 +161,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     try {
       const formData = new FormData();
       formData.append('name', product.name);
-      formData.append('piece', product.piece);
       formData.append('price', product.price);
       formData.append('description', product.description || '');
 
@@ -209,9 +206,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const updateProduct = async (product: AdminProduct) => {
     try {
       const formData = new FormData();
-      // No necesitamos _method POST si la ruta ya es POST, pero Laravel lo ignora si coincide
       formData.append('name', product.name);
-      formData.append('piece', product.piece);
       formData.append('price', product.price);
       formData.append('description', product.description || '');
 

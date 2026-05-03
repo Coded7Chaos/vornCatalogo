@@ -257,15 +257,6 @@ function ProductEditForm({
               />
             </div>
           </div>
-          <div>
-            <label className="block mb-1.5 text-[10px] uppercase tracking-wider text-neutral-400 font-medium">Tipo de prenda / Corte o descripción general</label>
-            <textarea
-              value={product.piece}
-              onChange={(e) => setField("piece", e.target.value)}
-              placeholder="Detalles sobre materiales, ajuste, corte o concepto..."
-              className={`${inputCls} min-h-[100px] py-3 resize-none`}
-            />
-          </div>
         </div>
       </div>
 
@@ -403,8 +394,6 @@ function ProductRow({
                     />
                 ))}
             </div>
-            <span className="text-[11px] text-neutral-400 font-medium">|</span>
-            <span className="text-[11px] text-neutral-500 truncate">{product.piece}</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             {allSizes.map(s => (
@@ -469,8 +458,7 @@ export function AdminProducts() {
     const q = searchQuery.toLowerCase();
     return products.filter(
       (p) =>
-        (p.name || "").toLowerCase().includes(q) ||
-        (p.piece || "").toLowerCase().includes(q)
+        (p.name || "").toLowerCase().includes(q)
     );
   }, [products, searchQuery]);
 
@@ -479,7 +467,6 @@ export function AdminProducts() {
     const blank: AdminProduct = {
       id: `new-${Date.now()}`,
       name: "",
-      piece: "",
       price: "Bs. 0",
       variants: [{ name: "", color: "#e5e5e5", images: [], sizes: [] }],
       totalSales: 0,
@@ -529,7 +516,7 @@ export function AdminProducts() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Buscar prendas por nombre o detalles..."
+          placeholder="Buscar prendas por nombre..."
           className="w-full rounded-2xl border border-white/60 py-3.5 pl-11 pr-4 text-[14px] text-neutral-800 placeholder-neutral-400 outline-none transition focus:border-neutral-300 focus:bg-white/90"
           style={{
             background: "rgba(255,255,255,0.62)",
