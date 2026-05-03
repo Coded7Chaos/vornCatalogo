@@ -15,10 +15,13 @@ class ProductImage extends Model
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 
-    // Accessor para obtener la URL completa de la imagen
+    // Accessor para obtener la URL completa de la imagen forzando el disco public
     public function getUrlAttribute(): string
     {
-        return Storage::url($this->path);
+        if (str_starts_with($this->path, 'http')) {
+            return $this->path;
+        }
+        return Storage::disk('public')->url($this->path);
     }
     
     protected $appends = ['url'];

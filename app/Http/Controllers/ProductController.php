@@ -9,6 +9,7 @@ use App\Models\ProductSize;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
@@ -19,15 +20,7 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string',
-            'piece' => 'required|string',
-            'price' => 'required|string',
-            'variants' => 'required|array',
-            'variants.*.color_name' => 'required|string',
-            'variants.*.color_hex' => 'required|string',
-            'variants.*.sizes' => 'required|array',
-        ]);
+        $this->validateProduct($request);
 
         return DB::transaction(function () use ($request) {
             $product = Product::create([
@@ -45,12 +38,7 @@ class ProductController extends Controller
 
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'name' => 'required|string',
-            'piece' => 'required|string',
-            'price' => 'required|string',
-            'variants' => 'required|array',
-        ]);
+        $this->validateProduct($request);
 
         return DB::transaction(function () use ($request, $id) {
             $product = Product::findOrFail($id);
@@ -61,10 +49,7 @@ class ProductController extends Controller
                 'description' => $request->description,
             ]);
 
-            // Para simplificar la edición, eliminamos variantes antiguas y creamos las nuevas
-            // Nota: En una app de producción real se compararían IDs, pero para este catálogo esto es seguro.
             foreach ($product->variants as $variant) {
-                // Opcional: Podrías decidir no borrar las imágenes del disco aquí si se reutilizan
                 $variant->sizes()->delete();
                 $variant->images()->delete();
                 $variant->delete();
@@ -76,6 +61,20 @@ class ProductController extends Controller
         });
     }
 
+    private function validateProduct(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'piece' => 'required|string',
+            'price' => 'required|string',
+            'variants' => 'required|array',
+            'variants.*.color_name' => 'required|string',
+            'variants.*.color_hex' => 'required|string',
+            'variants.*.sizes' => 'required|array',
+            // Quitamos la validación estricta de 'image' aquí porque pueden ser URLs existentes
+        ]);
+    }
+
     private function saveVariants($product, $variantsData)
     {
         foreach ($variantsData as $vData) {
@@ -85,7 +84,6 @@ class ProductController extends Controller
                 'color_hex' => $vData['color_hex'],
             ]);
 
-            // Tallas
             foreach ($vData['sizes'] as $size) {
                 ProductSize::create([
                     'product_variant_id' => $variant->id,
@@ -93,25 +91,24 @@ class ProductController extends Controller
                 ]);
             }
 
-            // Imágenes
             if (isset($vData['images'])) {
                 foreach ($vData['images'] as $imageItem) {
+                    $path = null;
                     if ($imageItem instanceof \Illuminate\Http\UploadedFile) {
-                        // Es una imagen nueva subida
                         $path = $imageItem->store('products', 'public');
-                    } else {
-                        // Es una imagen existente (URL o path)
+                    } else if (is_string($imageItem)) {
                         $path = $imageItem;
-                        // Limpiamos la URL si viene completa para guardar solo el path relativo
                         if (str_contains($path, '/storage/')) {
                             $path = explode('/storage/', $path)[1];
                         }
                     }
                     
-                    ProductImage::create([
-                        'product_variant_id' => $variant->id,
-                        'path' => $path,
-                    ]);
+                    if ($path) {
+                        ProductImage::create([
+                            'product_variant_id' => $variant->id,
+                            'path' => $path,
+                        ]);
+                    }
                 }
             }
         }
@@ -120,11 +117,6 @@ class ProductController extends Controller
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
-        foreach ($product->variants as $variant) {
-            foreach ($variant->images as $image) {
-                Storage::disk('public')->delete($image->path);
-            }
-        }
         $product->delete();
         return response()->json(null, 204);
     }

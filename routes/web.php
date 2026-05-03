@@ -32,7 +32,12 @@ Route::get('/admin/reset-password', function () {
 
 Route::get('/fix-storage', function () {
     $target = storage_path('app/public');
+    $productsDir = $target . '/products';
     $link = public_path('storage');
+
+    if (!file_exists($productsDir)) {
+        mkdir($productsDir, 0775, true);
+    }
 
     try {
         if (file_exists($link)) {
@@ -44,12 +49,12 @@ Route::get('/fix-storage', function () {
         }
 
         if (symlink($target, $link)) {
-            return 'Enlace simbólico creado exitosamente en Hostinger.';
+            return 'Éxito: Carpeta products creada y Enlace simbólico vinculado.';
         } else {
-            return 'No se pudo crear el enlace. Por favor, ve al panel de Hostinger y activa la función "symlink" en la configuración de PHP.';
+            return 'Fallo al vincular symlink.';
         }
     } catch (\Exception $e) {
-        return 'Error: ' . $e->getMessage() . '. Intenta borrar la carpeta "public/storage" manualmente desde el Administrador de Archivos de Hostinger y luego recarga esta página.';
+        return 'Error: ' . $e->getMessage();
     }
 });
 
