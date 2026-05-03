@@ -14,13 +14,11 @@ class ProductController extends Controller
 {
     public function index()
     {
-        // Retornamos todos los productos con sus variantes, imágenes y tallas
         return Product::with(['variants.images', 'variants.sizes'])->get();
     }
 
     public function store(Request $request)
     {
-        // Validamos la entrada
         $request->validate([
             'name' => 'required|string',
             'piece' => 'required|string',
@@ -29,12 +27,9 @@ class ProductController extends Controller
             'variants.*.color_name' => 'required|string',
             'variants.*.color_hex' => 'required|string',
             'variants.*.sizes' => 'required|array',
-            'variants.*.images' => 'required|array',
-            'variants.*.images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120', // Máx 5MB por imagen
         ]);
 
         return DB::transaction(function () use ($request) {
-            // 1. Crear el producto
             $product = Product::create([
                 'name' => $request->name,
                 'piece' => $request->piece,
@@ -42,51 +37,94 @@ class ProductController extends Controller
                 'description' => $request->description,
             ]);
 
-            foreach ($request->variants as $variantData) {
-                // 2. Crear la variante
-                $variant = ProductVariant::create([
-                    'product_id' => $product->id,
-                    'color_name' => $variantData['color_name'],
-                    'color_hex' => $variantData['color_hex'],
-                ]);
-
-                // 3. Guardar tallas
-                foreach ($variantData['sizes'] as $size) {
-                    ProductSize::create([
-                        'product_variant_id' => $variant->id,
-                        'size' => $size,
-                    ]);
-                }
-
-                // 4. Subir y guardar imágenes
-                if (isset($variantData['images'])) {
-                    foreach ($variantData['images'] as $imageFile) {
-                        // Guardamos físicamente en storage/app/public/products
-                        $path = $imageFile->store('products', 'public');
-                        
-                        ProductImage::create([
-                            'product_variant_id' => $variant->id,
-                            'path' => $path,
-                        ]);
-                    }
-                }
-            }
+            $this->saveVariants($product, $request->variants);
 
             return response()->json($product->load('variants.images', 'variants.sizes'), 201);
         });
     }
 
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'piece' => 'required|string',
+            'price' => 'required|string',
+            'variants' => 'required|array',
+        ]);
+
+        return DB::transaction(function () use ($request, $id) {
+            $product = Product::findOrFail($id);
+            $product->update([
+                'name' => $request->name,
+                'piece' => $request->piece,
+                'price' => $request->price,
+                'description' => $request->description,
+            ]);
+
+            // Para simplificar la edición, eliminamos variantes antiguas y creamos las nuevas
+            // Nota: En una app de producción real se compararían IDs, pero para este catálogo esto es seguro.
+            foreach ($product->variants as $variant) {
+                // Opcional: Podrías decidir no borrar las imágenes del disco aquí si se reutilizan
+                $variant->sizes()->delete();
+                $variant->images()->delete();
+                $variant->delete();
+            }
+
+            $this->saveVariants($product, $request->variants);
+
+            return response()->json($product->load('variants.images', 'variants.sizes'));
+        });
+    }
+
+    private function saveVariants($product, $variantsData)
+    {
+        foreach ($variantsData as $vData) {
+            $variant = ProductVariant::create([
+                'product_id' => $product->id,
+                'color_name' => $vData['color_name'],
+                'color_hex' => $vData['color_hex'],
+            ]);
+
+            // Tallas
+            foreach ($vData['sizes'] as $size) {
+                ProductSize::create([
+                    'product_variant_id' => $variant->id,
+                    'size' => $size,
+                ]);
+            }
+
+            // Imágenes
+            if (isset($vData['images'])) {
+                foreach ($vData['images'] as $imageItem) {
+                    if ($imageItem instanceof \Illuminate\Http\UploadedFile) {
+                        // Es una imagen nueva subida
+                        $path = $imageItem->store('products', 'public');
+                    } else {
+                        // Es una imagen existente (URL o path)
+                        $path = $imageItem;
+                        // Limpiamos la URL si viene completa para guardar solo el path relativo
+                        if (str_contains($path, '/storage/')) {
+                            $path = explode('/storage/', $path)[1];
+                        }
+                    }
+                    
+                    ProductImage::create([
+                        'product_variant_id' => $variant->id,
+                        'path' => $path,
+                    ]);
+                }
+            }
+        }
+    }
+
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
-        
-        // Opcional: Eliminar imágenes físicas del storage
         foreach ($product->variants as $variant) {
             foreach ($variant->images as $image) {
                 Storage::disk('public')->delete($image->path);
             }
         }
-
         $product->delete();
         return response()->json(null, 204);
     }

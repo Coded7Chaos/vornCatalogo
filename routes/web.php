@@ -19,6 +19,7 @@ Route::prefix('api')->group(function () {
     // Protected routes
     Route::middleware('auth')->group(function () {
         Route::post('/products', [ProductController::class, 'store']);
+        Route::post('/products/{id}', [ProductController::class, 'update']); // Usamos POST para soportar multipart/form-data con imágenes
         Route::delete('/products/{id}', [ProductController::class, 'destroy']);
         Route::post('/update-profile', [AuthController::class, 'updateProfile']);
     });

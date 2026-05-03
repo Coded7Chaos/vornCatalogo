@@ -207,10 +207,53 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateProduct = async (product: AdminProduct) => {
-    // Implement update logic if needed, for now just call add logic or similar
-    // Laravel usually uses POST with _method=PUT for multipart/form-data
-    console.log("Update not fully implemented in backend yet, but calling fetchProducts to sync");
-    await fetchProducts();
+    try {
+      const formData = new FormData();
+      formData.append('_method', 'POST'); // Aunque usamos POST en la ruta, Laravel lo procesa
+      formData.append('name', product.name);
+      formData.append('piece', product.piece);
+      formData.append('price', product.price);
+      formData.append('description', product.description || '');
+
+      product.variants.forEach((variant, vIdx) => {
+        formData.append(`variants[${vIdx}][color_name]`, variant.name);
+        formData.append(`variants[${vIdx}][color_hex]`, variant.color);
+        variant.sizes.forEach((size, sIdx) => {
+          formData.append(`variants[${vIdx}][sizes][${sIdx}]`, size);
+        });
+        
+        variant.images.forEach((img, iIdx) => {
+          if (img.startsWith('data:image')) {
+            // Imagen nueva (base64)
+            const byteString = atob(img.split(',')[1]);
+            const mimeString = img.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeString });
+            formData.append(`variants[${vIdx}][images][${iIdx}]`, blob, `image-${vIdx}-${iIdx}.png`);
+          } else {
+            // Imagen existente (URL)
+            formData.append(`variants[${vIdx}][images][${iIdx}]`, img);
+          }
+        });
+      });
+
+      const response = await fetch(`/api/products/${product.id}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || ''
+        },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Failed to update product');
+      await fetchProducts();
+    } catch (error) {
+      console.error("Error updating product:", error);
+    }
   };
 
   const deleteProduct = async (id: string) => {
