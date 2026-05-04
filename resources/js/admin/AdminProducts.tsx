@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, Reorder } from "motion/react";
 import {
   Search,
   Plus,
@@ -13,6 +13,8 @@ import {
   Upload,
 } from "lucide-react";
 import { useAdmin, AdminProduct, AdminVariant } from "./AdminStore";
+import { toast } from "sonner";
+import heic2any from "heic2any";
 
 /* ─── helpers ─── */
 const glassCard = {
@@ -21,6 +23,75 @@ const glassCard = {
   WebkitBackdropFilter: "blur(28px) saturate(180%)",
   boxShadow:
     "0 1px 0 rgba(255,255,255,0.85) inset, 0 8px 32px rgba(20,20,40,0.07)",
+};
+
+const processImage = async (file: File): Promise<string> => {
+  console.log(`[ImageProcess] Iniciando procesamiento de: ${file.name} (${file.type}) - Tamaño: ${(file.size / 1024).toFixed(2)} KB`);
+  let blob: Blob = file;
+
+  // 1. Manejo de HEIC (iPhone)
+  if (file.name.toLowerCase().endsWith(".heic") || file.type === "image/heic") {
+    console.log(`[ImageProcess] Detectado formato HEIC, convirtiendo...`);
+    try {
+      const converted = await heic2any({
+        blob: file,
+        toType: "image/jpeg",
+        quality: 0.8,
+      });
+      blob = Array.isArray(converted) ? converted[0] : converted;
+      console.log(`[ImageProcess] HEIC convertido a JPEG exitosamente.`);
+    } catch (e) {
+      console.error("[ImageProcess] Error al convertir HEIC:", e);
+      throw new Error(`No se pudo procesar el formato HEIC de ${file.name}`);
+    }
+  }
+
+  // 2. Conversión a WebP y compresión vía Canvas
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // Redimensionar para optimizar (crítico para Hostinger/Performance)
+        const MAX_WIDTH = 1600;
+        const MAX_HEIGHT = 1600;
+        
+        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+          const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+          console.log(`[ImageProcess] Redimensionando de ${img.width}x${img.height} a ${width}x${height}`);
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject("No se pudo obtener el contexto del canvas");
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Exportar a WebP con calidad 0.8 para balancear peso y calidad
+        const webpData = canvas.toDataURL("image/webp", 0.8);
+        console.log(`[ImageProcess] Conversión a WebP completada para ${file.name}. Final: ${(webpData.length / 1024).toFixed(2)} KB (Base64)`);
+        resolve(webpData);
+      };
+      img.onerror = (err) => {
+        console.error("[ImageProcess] Error cargando imagen en canvas:", err);
+        reject(`Error al cargar los píxeles de ${file.name}`);
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = (err) => {
+      console.error("[ImageProcess] Error en FileReader:", err);
+      reject(`Error de lectura en ${file.name}`);
+    };
+    reader.readAsDataURL(blob);
+  });
 };
 
 const inputCls =
@@ -42,6 +113,7 @@ function VariantEditor({
   canRemove: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const toggleSize = (size: string) => {
     const currentSizes = variant.sizes || [];
@@ -51,32 +123,111 @@ function VariantEditor({
     onChange("sizes", newSizes);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        const currentImages = variant.images || [];
-        if (currentImages.length < 6) {
-          onChange("images", [...currentImages, base64String]);
+  const handleFiles = async (files: FileList | File[]) => {
+    console.log(`[Upload] Iniciando procesamiento de ${files.length} archivos...`);
+    const toastId = toast.loading("Procesando imágenes...");
+    
+    try {
+      const processedImages: string[] = [];
+      const fileArray = Array.from(files);
+      
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        console.log(`[Upload] Procesando archivo ${i + 1}/${fileArray.length}: ${file.name}`);
+        
+        if (!file.type.startsWith('image/') && !file.name.toLowerCase().endsWith('.heic')) {
+          console.warn(`[Upload] Archivo omitido (formato no soportado): ${file.name}`);
+          continue;
         }
-      };
-      reader.readAsDataURL(file);
-    });
+
+        try {
+          const webpBase64 = await processImage(file);
+          processedImages.push(webpBase64);
+        } catch (err) {
+          console.error(`[Upload] Error procesando ${file.name}:`, err);
+        }
+      }
+
+      const currentImages = variant.images || [];
+      // Filtrar duplicados exactos para evitar problemas con las llaves de React y Reorder
+      const uniqueNewImages = processedImages.filter(newImg => !currentImages.includes(newImg));
+      
+      const spaceLeft = 6 - currentImages.length;
+      const imagesToAdd = uniqueNewImages.slice(0, spaceLeft);
+
+      if (imagesToAdd.length > 0) {
+        onChange("images", [...currentImages, ...imagesToAdd]);
+        toast.success(`${imagesToAdd.length} imágenes añadidas correctamente.`, { id: toastId });
+        console.log(`[Upload] Finalizado: ${imagesToAdd.length} imágenes añadidas al estado.`);
+      } else {
+        if (processedImages.length > 0 && spaceLeft <= 0) {
+          toast.error("Límite de 6 imágenes alcanzado para esta variante.", { id: toastId });
+          console.warn("[Upload] No se añadieron imágenes: límite alcanzado.");
+        } else {
+          toast.dismiss(toastId);
+          console.warn("[Upload] No se procesaron imágenes válidas o estaban duplicadas.");
+        }
+      }
+    } catch (error: any) {
+      console.error("[Upload] Error crítico en handleFiles:", error);
+      toast.error("Ocurrió un error al procesar las imágenes.", { id: toastId });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    console.log("[DragDrop] Evento soltar detectado. Verificando archivos...");
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      console.log(`[DragDrop] ${e.dataTransfer.files.length} archivos detectados.`);
+      handleFiles(e.dataTransfer.files);
+    } else {
+      console.warn("[DragDrop] No se detectaron archivos en el evento drop.");
+    }
   };
 
   const removeImage = (imgIdx: number) => {
+    console.log(`[Image] Eliminando imagen en índice: ${imgIdx}`);
     const currentImages = variant.images || [];
     onChange("images", currentImages.filter((_, i) => i !== imgIdx));
   };
 
+  const reorderImages = (newOrder: string[]) => {
+    console.log("[Reorder] Nuevo orden aplicado a las imágenes:", newOrder.length, "elementos.");
+    onChange("images", newOrder);
+  };
+
   return (
     <div
-      className="rounded-xl border border-neutral-900/8 p-4"
-      style={{ background: "rgba(255,255,255,0.55)" }}
+      className={`rounded-xl border transition-all duration-300 p-4 ${
+        isDragging ? "border-neutral-900 bg-neutral-900/5 ring-4 ring-neutral-900/10" : "border-neutral-900/8 bg-white/55"
+      }`}
+      onDragOver={(e) => { 
+        e.preventDefault(); 
+        e.stopPropagation(); 
+        setIsDragging(true); 
+      }}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+      }}
+      onDrop={onDrop}
     >
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <div className="flex items-center gap-2">
@@ -136,7 +287,7 @@ function VariantEditor({
           <div className="flex items-center gap-1.5">
             <ImageIcon className="h-3 w-3 text-neutral-400" />
             <span className="text-[10px] tracking-[0.2em] uppercase text-neutral-500">
-              Imágenes del producto
+              Imágenes {isDragging ? "(Suelta aquí)" : ""}
             </span>
           </div>
           <button
@@ -145,35 +296,47 @@ function VariantEditor({
             className="flex items-center gap-1.5 rounded-lg bg-neutral-100 px-2.5 py-1.5 text-[11px] text-neutral-600 hover:bg-neutral-200 transition"
           >
             <Upload className="h-3 w-3" />
-            Subir imágenes
+            Subir múltiples
           </button>
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFileUpload}
             multiple
-            accept="image/*"
+            accept="image/*,.heic"
             className="hidden"
           />
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <Reorder.Group
+          axis="x"
+          values={variant.images || []}
+          onReorder={reorderImages}
+          className="flex flex-wrap gap-2"
+        >
           {(variant.images || []).map((img, imgIdx) => (
-            <div key={imgIdx} className="group relative h-20 w-16 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
-              <img src={img} className="h-full w-full object-cover" alt="Preview" />
+            <Reorder.Item
+              key={img}
+              value={img}
+              className="group relative h-20 w-16 cursor-grab active:cursor-grabbing overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50"
+            >
+              <img src={img} className="h-full w-full object-cover pointer-events-none" alt="Preview" />
               <button
-                onClick={() => removeImage(imgIdx)}
-                className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-500 opacity-0 shadow-sm transition group-hover:opacity-100"
+                onClick={(e) => { e.stopPropagation(); removeImage(imgIdx); }}
+                className="absolute right-1 top-1 z-10 rounded-full bg-white/95 p-1 text-red-500 shadow-sm transition opacity-100 md:opacity-0 md:group-hover:opacity-100"
               >
                 <X className="h-3 w-3" />
               </button>
-            </div>
+            </Reorder.Item>
           ))}
           {(!variant.images || variant.images.length === 0) && (
             <div className="flex h-20 w-16 flex-col items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-neutral-50/50 text-neutral-300">
                <ImageIcon className="h-5 w-5" />
             </div>
           )}
+        </Reorder.Group>
+        <div className="mt-2 text-[9px] text-neutral-400 italic">
+          Tip: Arrastra archivos aquí o mueve las fotos para cambiar su orden.
         </div>
       </div>
     </div>

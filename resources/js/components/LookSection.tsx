@@ -32,9 +32,16 @@ export function LookSection({
   const variant = look.variants[colorIdx] || { name: "", color: "#000", images: [], sizes: [] };
   const image = (variant.images && variant.images.length > 0) ? (variant.images[imgIdx] ?? variant.images[0]) : null;
 
+  // Pre-cargar imágenes de la variante actual para fluidez instantánea
   useEffect(() => {
-    setSelectedSize("");
-  }, [colorIdx, look]);
+    setSelectedSize(""); // Limpiar talla al cambiar variante
+    if (variant.images) {
+      variant.images.forEach((src) => {
+        const img = new Image();
+        img.src = src;
+      });
+    }
+  }, [variant, colorIdx, look]);
 
   const handleAddToCart = () => {
     if (!selectedSize && variant.sizes?.length > 0) {
@@ -68,25 +75,44 @@ export function LookSection({
   const nextHint = useTransform(dragX, [-120, 0], [1, 0]);
 
   const goImage = (n: number) => {
-    if (!variant.images || variant.images.length === 0) return;
-    setHDir(n > 0 ? 1 : -1);
-    setImgIdx((i) => (i + n + variant.images.length) % variant.images.length);
+    const currentVariantImages = look.variants[colorIdx]?.images || [];
+    let nextImgIdx = imgIdx + n;
+
+    if (nextImgIdx >= currentVariantImages.length) {
+      // Si llegamos al final de las imágenes de este color, pasamos al siguiente color
+      const nextColorIdx = (colorIdx + 1) % look.variants.length;
+      setHDir(1);
+      setColorIdx(nextColorIdx);
+      setImgIdx(0);
+    } else if (nextImgIdx < 0) {
+      // Si deslizamos hacia atrás en la primera imagen, vamos al color anterior
+      const prevColorIdx = (colorIdx - 1 + look.variants.length) % look.variants.length;
+      const prevVariantImages = look.variants[prevColorIdx]?.images || [];
+      setHDir(-1);
+      setColorIdx(prevColorIdx);
+      setImgIdx(Math.max(0, prevVariantImages.length - 1));
+    } else {
+      // Cambio normal de imagen dentro del mismo color
+      setHDir(n > 0 ? 1 : -1);
+      setImgIdx(nextImgIdx);
+    }
   };
 
   const pickColor = (i: number) => {
     if (i === colorIdx) return;
+    setHDir(i > colorIdx ? 1 : -1);
     setColorIdx(i);
-    const newLen = look.variants[i]?.images?.length || 0;
-    if (imgIdx >= newLen) setImgIdx(0);
+    setImgIdx(0);
   };
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
-    const tx = info.offset.x + info.velocity.x * 0.18;
-    if (Math.abs(tx) > 70) {
+    // Calculamos el desplazamiento final considerando la velocidad del dedo
+    const tx = info.offset.x + info.velocity.x * 0.2;
+    if (Math.abs(tx) > 50) { // Reducimos el umbral a 50px para que sea más sensible
       if (tx < 0) goImage(1);
       else goImage(-1);
     }
-    animate(dragX, 0, { type: "spring", stiffness: 220, damping: 28 });
+    animate(dragX, 0, { type: "spring", stiffness: 250, damping: 30 });
   };
 
   return (
@@ -273,17 +299,18 @@ export function LookSection({
           <AnimatePresence mode="popLayout" custom={hDir}>
             {image ? (
                 <motion.img
-                  key={imgIdx}
+                  key={`${colorIdx}-${imgIdx}`}
                   src={image}
                   alt={`${look.name} — ${variant.name}`}
-                  initial={{ opacity: 0, scale: 1 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  decoding="async"
                   className="absolute bottom-0 h-full w-auto select-none object-contain pointer-events-none"
                   style={{
-                    filter:
-                      "drop-shadow(0 40px 60px rgba(40,44,60,0.18)) drop-shadow(0 10px 20px rgba(40,44,60,0.12))",
+                    willChange: "transform, opacity",
+                    filter: "drop-shadow(0 20px 40px rgba(40,44,60,0.15))",
                   }}
                   draggable={false}
                 />

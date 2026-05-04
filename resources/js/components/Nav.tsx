@@ -45,7 +45,7 @@ export function Nav({ searchQuery = "", onSearchChange, selectedSize = "", onSiz
   };
 
   const handleWhatsAppConfirm = () => {
-    const phoneNumber = "59178768481";
+    const wapUrl = import.meta.env.VITE_SOCIAL_WA_URL || "https://wa.me/59178768481";
     const subtotal = items.reduce((sum, item) => {
       const priceNum = parseInt(item.price.replace(/[^0-9]/g, "")) || 0;
       return sum + (priceNum * item.quantity);
@@ -67,7 +67,7 @@ export function Nav({ searchQuery = "", onSearchChange, selectedSize = "", onSiz
     message += `\n*Subtotal:* Bs. ${formattedSubtotal}\n\nMuchas gracias!`;
 
     const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
+    window.open(`${wapUrl}?text=${encodedMessage}`, "_blank");
   };
 
   return (

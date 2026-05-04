@@ -3,12 +3,28 @@ import { motion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 
  export function ContactPage() {
-   const socials = [
-     { name: "WhatsApp", handle: "+591 78768481", url: "https://wa.me/59178768481" },
-     { name: "Facebook", handle: "VØRN", url: "https://www.facebook.com/share/18WmovUK5J/" },
-     { name: "Instagram", handle: "@vorn_369", url: "https://www.instagram.com/vorn_369/?utm_source=ig_web_button_share_sheet" },
-     { name: "TikTok", handle: "@vorn_369", url: "https://www.tiktok.com/@vorn_369?is_from_webapp=1&sender_device=pc" },
-   ];
+const socials = [
+  { 
+    name: "WhatsApp", 
+    handle: import.meta.env.VITE_SOCIAL_WA_HANDLE || "+591 78768481", 
+    url: import.meta.env.VITE_SOCIAL_WA_URL || "https://wa.me/59178768481" 
+  },
+  { 
+    name: "Facebook", 
+    handle: import.meta.env.VITE_SOCIAL_FB_HANDLE || "VØRN", 
+    url: import.meta.env.VITE_SOCIAL_FB_URL || "https://www.facebook.com/share/18WmovUK5J/" 
+  },
+  { 
+    name: "Instagram", 
+    handle: import.meta.env.VITE_SOCIAL_IG_HANDLE || "@vorn_369", 
+    url: import.meta.env.VITE_SOCIAL_IG_URL || "https://www.instagram.com/vorn_369/" 
+  },
+  { 
+    name: "TikTok", 
+    handle: import.meta.env.VITE_SOCIAL_TIKTOK_HANDLE || "@vorn_369", 
+    url: import.meta.env.VITE_SOCIAL_TIKTOK_URL || "https://www.tiktok.com/@vorn_369" 
+  },
+];
    
       return (
         <div className="min-h-[100svh] w-full bg-[#f4f5f7] text-neutral-900 font-sans">
