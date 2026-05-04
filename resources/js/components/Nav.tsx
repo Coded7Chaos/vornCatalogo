@@ -47,8 +47,16 @@ export function Nav({ searchQuery = "", onSearchChange, selectedSize = "", onSiz
   const handleWhatsAppConfirm = () => {
     const wapUrl = import.meta.env.VITE_SOCIAL_WA_URL || "https://wa.me/59178768481";
     const subtotal = items.reduce((sum, item) => {
-      const priceString = String(item.price).replace(/[^0-9.]/g, "");
-      const priceNum = parseFloat(priceString) || 0;
+      const rawPrice = item.price;
+      let priceNum = 0;
+      if (typeof rawPrice === 'number') {
+        priceNum = rawPrice;
+      }
+      else if (typeof rawPrice === 'string') {
+        // Cambiamos comas por puntos (por si acaso) y extraemos solo la parte matemática
+        const cleanString = rawPrice.replace(',', '.').replace(/[^0-9.-]/g, "");
+        priceNum = parseFloat(cleanString) || 0;
+      }
       return sum + (priceNum * item.quantity);
     }, 0);
 
