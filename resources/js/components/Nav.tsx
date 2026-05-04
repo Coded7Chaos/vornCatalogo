@@ -47,7 +47,8 @@ export function Nav({ searchQuery = "", onSearchChange, selectedSize = "", onSiz
   const handleWhatsAppConfirm = () => {
     const wapUrl = import.meta.env.VITE_SOCIAL_WA_URL || "https://wa.me/59178768481";
     const subtotal = items.reduce((sum, item) => {
-      const priceNum = parseInt(item.price.replace(/[^0-9]/g, "")) || 0;
+      const priceString = String(item.price).replace(/[^0-9.]/g, "");
+      const priceNum = parseFloat(priceString) || 0;
       return sum + (priceNum * item.quantity);
     }, 0);
 
