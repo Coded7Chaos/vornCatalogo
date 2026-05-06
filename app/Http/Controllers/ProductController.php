@@ -25,7 +25,7 @@ class ProductController extends Controller
         return DB::transaction(function () use ($request) {
             $product = Product::create([
                 'name' => $request->name,
-                'price' => $request->price,
+                'price' => $this->cleanPrice($request->price),
                 'description' => $request->description,
             ]);
 
@@ -43,7 +43,7 @@ class ProductController extends Controller
             $product = Product::findOrFail($id);
             $product->update([
                 'name' => $request->name,
-                'price' => $request->price,
+                'price' => $this->cleanPrice($request->price),
                 'description' => $request->description,
             ]);
 
@@ -57,6 +57,20 @@ class ProductController extends Controller
 
             return response()->json($product->load('variants.images', 'variants.sizes'));
         });
+    }
+
+    private function cleanPrice($price)
+    {
+        if (is_numeric($price)) {
+            return $price;
+        }
+        
+        // Quitar "Bs.", espacios, y normalizar coma decimal a punto
+        $cleaned = str_replace(['Bs.', ' ', ','], ['', '', '.'], $price);
+        // Mantener solo números y el primer punto decimal
+        $cleaned = preg_replace('/[^0-9.]/', '', $cleaned);
+        
+        return $cleaned ?: 0;
     }
 
     private function validateProduct(Request $request)
